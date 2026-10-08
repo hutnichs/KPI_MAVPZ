@@ -1,0 +1,100 @@
+erDiagram
+    Customer {
+        int customer_id PK
+        string name
+        string surname
+        string email
+        string phone
+        string zip_code
+    }
+    Pet {
+        int pet_id PK
+        int customer_id FK
+        string name
+        string species
+        string breed
+        string gender
+        date birth_date
+        string special_needs
+    }
+    Supplier {
+        int supplier_id PK
+        string name
+        string address
+        string contact
+    }
+    Product {
+        int prod_id PK
+        int category_id FK
+        int supplier_id FK
+        string title
+        decimal price
+        int stock
+    }
+    Orders {
+        int order_id PK
+        int customer_id FK
+        string status
+        date date
+    }
+    Delivery {
+        int del_id PK
+        int order_id FK
+        string tracking_num
+        string status
+        date date
+        string address
+    }
+    Review {
+        int review_id PK
+        int customer_id FK
+        int pet_id FK
+        int prod_id FK
+        int rating
+        string text
+    }
+    Category {
+        int category_id PK
+        string name
+    }
+    Tags {
+        int tag_id PK
+        string name
+    }
+    Prod_Tag {
+        int tag_id PK, FK
+        int prod_id PK, FK
+    }
+    Wishlist {
+        int customer_id PK, FK
+        int prod_id PK, FK
+    }
+    Order_Prod {
+        int prod_id PK, FK
+        int order_id PK, FK
+        int quantity
+        decimal price_at_purchase
+    }
+    Payment {
+        int pay_id PK
+        int order_id FK
+        decimal amount
+        string status
+        date date
+    }
+
+    Customer ||--o{ Pet : "має домашніх тварин"
+    Customer ||--o{ Orders : "робить замовлення"
+    Customer ||--o{ Review : "пише відгуки"
+    Product ||--o{ Review : "має відгуки"
+    Customer ||--o{ Wishlist : "додає до обраного"
+    Product ||--o{ Wishlist : "зберігається в обраному"
+    Category ||--o{ Product : "містить товари"
+    Supplier ||--o{ Product : "постачає"
+    Product ||--o{ Prod_Tag : "має теги"
+    Tags ||--o{ Prod_Tag : "належить до тегу"
+    Orders ||--|{ Order_Prod : "містить позиції"
+    Product ||--o{ Order_Prod : "замовлено в позиціях"
+    Pet ||--o{ Review : "згадується у відгуку"
+    Orders ||--o| Payment : "оплачується через"
+    Orders ||--o| Delivery : "доставляється через"
