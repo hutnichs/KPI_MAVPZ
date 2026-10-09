@@ -6,6 +6,7 @@ erDiagram
         string email
         string phone
         string zip_code
+        boolean is_deleted
     }
     Pet {
         int pet_id PK
@@ -16,64 +17,60 @@ erDiagram
         string gender
         date birth_date
         string special_needs
+        boolean is_deleted
+    }
+    Product {
+        int prod_id PK
+        int category_id FK
+        int supplier_id FK
+        int added_by FK
+        string title
+        decimal price
+        int stock
+        boolean is_deleted
+    }
+    Prod_Img {
+        int pi_id PK
+        int prod_id FK
+        string img_url
+        boolean is_main
+    }
+    Category {
+        int category_id PK
+        string name
     }
     Supplier {
         int supplier_id PK
         string name
         string address
         string contact
-    }
-    Product {
-        int prod_id PK
-        int category_id FK
-        int supplier_id FK
-        string title
-        decimal price
-        int stock
-    }
-    Orders {
-        int order_id PK
-        int customer_id FK
-        string status
-        date date
-    }
-    Delivery {
-        int del_id PK
-        int order_id FK
-        string tracking_num
-        string status
-        date date
-        string address
-    }
-    Review {
-        int review_id PK
-        int customer_id FK
-        int pet_id FK
-        int prod_id FK
-        int rating
-        string text
-    }
-    Category {
-        int category_id PK
-        string name
+        boolean is_deleted
     }
     Tags {
         int tag_id PK
         string name
     }
-    Prod_Tag {
-        int tag_id PK, FK
-        int prod_id PK, FK
-    }
-    Wishlist {
-        int customer_id PK, FK
-        int prod_id PK, FK
+    Orders {
+        int order_id PK
+        int customer_id FK
+        int processed_by FK
+        string status
+        date date
     }
     Order_Prod {
-        int prod_id PK, FK
         int order_id PK, FK
+        int prod_id PK, FK
         int quantity
         decimal price_at_purchase
+    }
+    Delivery {
+        int del_id PK
+        int order_id FK
+        int shipped_by FK
+        string tracking_num
+        string status
+        date date
+        string address
     }
     Payment {
         int pay_id PK
@@ -82,19 +79,52 @@ erDiagram
         string status
         date date
     }
+    Review {
+        int review_id PK
+        int customer_id FK
+        int pet_id FK
+        int prod_id FK
+        int rating
+        string text
+        string pet_info
+        boolean is_deleted
+    }
+    Review_Pet_Snapshot {
+        int pet_id PK, FK
+        int review_id PK, FK
+        string name
+        string species
+        string breed
+        string gender
+        date birth_date
+        string special_needs
+    }
+    Employee {
+        int empl_id PK
+        string name
+        string surname
+        string email
+        string phone
+        string role
+        date hired_at
+        boolean is_deleted
+    }
 
     Customer ||--o{ Pet : "має домашніх тварин"
     Customer ||--o{ Orders : "робить замовлення"
     Customer ||--o{ Review : "пише відгуки"
+    Customer }o--o{ Product : "додає до обраного"
+    Pet ||--o{ Review_Pet_Snapshot : "має снапшоти"
+    Review ||--o{ Review_Pet_Snapshot : "містить снапшоти"
     Product ||--o{ Review : "має відгуки"
-    Customer ||--o{ Wishlist : "додає до обраного"
-    Product ||--o{ Wishlist : "зберігається в обраному"
     Category ||--o{ Product : "містить товари"
     Supplier ||--o{ Product : "постачає"
-    Product ||--o{ Prod_Tag : "має теги"
-    Tags ||--o{ Prod_Tag : "належить до тегу"
+    Product ||--o{ Prod_Img : "має зображення"
+    Product }o--o{ Tags : "має теги"
     Orders ||--|{ Order_Prod : "містить позиції"
     Product ||--o{ Order_Prod : "замовлено в позиціях"
-    Pet ||--o{ Review : "згадується у відгуку"
-    Orders ||--o| Payment : "оплачується через"
-    Orders ||--o| Delivery : "доставляється через"
+    Orders ||--o{ Payment : "оплачується через"
+    Orders ||--o{ Delivery : "доставляється через"
+    Employee ||--o{ Product : "додає товари"
+    Employee ||--o{ Orders : "обробляє замовлення"
+    Employee ||--o{ Delivery : "відправляє доставки"

@@ -11,38 +11,34 @@
 5. Category: `category_id` (PK, int), `name` (varchar).
 6. Supplier: `supplier_id` (PK, int), `name` (varchar), `address` (varchar), `contact` (varchar).
 7. Tags: `tag_id` (PK, int), `name` (varchar).
-8. Prod_Tag: `tag_id` (PK/FK, int), `prod_id` (PK/FK, int).
-9. Wishlist: `customer_id` (PK/FK, int), `prod_id` (PK/FK, int).
-10. Orders: `order_id` (PK, int), `customer_id` (FK, int), `status` (varchar), `date` (date).
-11. Order_Prod: `order_id` (PK/FK, int), `prod_id` (PK/FK, int), `quantity` (int), `price_at_purchase` (decimal).
-12. Delivery: `del_id` (PK, int), `order_id` (FK, int), `tracking_num` (varchar), `status` (varchar), `date` (date), `address` (varchar).
-13. Payment: `pay_id` (PK, int), `order_id` (FK, int), `amount` (decimal), `status` (varchar), `date` (date).
-14. Review: `review_id` (PK, int), `customer_id` (FK, int), `pet_id` (FK, int), `prod_id` (FK, int), `rating` (int), `text` (varchar) `pet_info` (varchar).
-Review_Pet_Snapshot: pet_id (PK/FK, int), review_id (PK/FK, int), name (varchar), species (varchar), breed (varchar), gender (varchar), birth_date (date), special_needs (varchar) (збереження стану тварини на момент написання відгуку)..
-16. Employee: `empl_id` (PK, int), `name` (varchar), `surname` (varchar), `email` (varchar), `phone` (varchar), `role` (varchar), `hired_at` (date), `is_deleted` (boolean).
+8. Orders: `order_id` (PK, int), `customer_id` (FK, int), `status` (varchar), `date` (date).
+9. Order_Prod: `order_id` (PK/FK, int), `prod_id` (PK/FK, int), `quantity` (int), `price_at_purchase` (decimal).
+10. Delivery: `del_id` (PK, int), `order_id` (FK, int), `tracking_num` (varchar), `status` (varchar), `date` (date), `address` (varchar).
+11. Payment: `pay_id` (PK, int), `order_id` (FK, int), `amount` (decimal), `status` (varchar), `date` (date).
+12. Review: `review_id` (PK, int), `customer_id` (FK, int), `pet_id` (FK, int), `prod_id` (FK, int), `rating` (int), `text` (varchar) `pet_info` (varchar).
+13. Review_Pet_Snapshot: `pet_id` (PK/FK, int), `review_id` (PK/FK, int), `name` (varchar), `species` (varchar), `breed` (varchar), `gender` (varchar), `birth_date` (date), `special_needs` (varchar) (збереження стану тварини на момент написання відгуку)..
+14. Employee: `empl_id` (PK, int), `name` (varchar), `surname` (varchar), `email` (varchar), `phone` (varchar), `role` (varchar), `hired_at` (date), `is_deleted` (boolean).
 
 3. Зв'язки
 
 1. Customer 1 : N Pet. Клієнт має 0..N тварин. Тварина належить рівно одному клієнту.
 2. Customer 1 : N Orders. Клієнт робить 0..N замовлень. Замовлення належить рівно одному клієнту.
 3. Customer 1 : N Review. Клієнт пише 0..N відгуків. Відгук має рівно одного автора.
-4. Customer 1 : N Wishlist. Клієнт має 0..N записів у вішлісті. Запис належить рівно одному клієнту.
-5. Product 1 : N Wishlist. Товар може бути у 0..N записах вішліста. Запис стосується рівно одного товару.
-6. Pet 1 : N Review_Pet_Snapshot. Тварина має 0..N снапшотів. Снапшот стосується рівно однієї тварини.
-7. Review 1 : N Review_Pet_Snapshot. Відгук містить 0..N снапшотів. Снапшот належить рівно одному відгуку. Тут асоціативна сутність між Review і Pet, щоб зберегти інформацію, якщо вона зміниться або її буде позначено видаленою.
-8. Product 1 : N Review. Товар має 0..N відгуків. Відгук стосується рівно одного товару.
-9. Category 1 : N Product. Категорія містить 0..N товарів. Товар належить рівно одній категорії.
-10. Supplier 1 : N Product. Постачальник постачає 0..N товарів. Товар має рівно одного постачальника.
-11. Product 1 : N Prod_Img. Товар має 0..N зображень. Зображення належить рівно одному товару.
-12. Product 1 : N Prod_Tag. Товар має 0..N записів тегів. Запис стосується рівно одного товару.
-13. Tags 1 : N Prod_Tag. Тег використовується у 0..N записах. Запис стосується рівно одного тега.
-14. Orders 1 : N Order_Prod. Замовлення містить 1..N позицій. Позиція належить рівно одному замовленню.
-15. Product 1 : N Order_Prod. Товар є у 0..N позиціях. Позиція стосується рівно одного товару. Зберігає quantity і price_at_purchase на випадок зміни ціни.
-16. Orders 1 : N Payment. Замовлення має 0..N оплат (повторні спроби, часткова оплата). Оплата належить рівно одному замовленню.
-17. Orders 1 : N Delivery. Замовлення має 0..N доставок. Доставка належить рівно одному замовленню.
-18. Employee 1 : N Product (added_by). Працівник додає 0..N товарів. Товар додано рівно одним працівником.
-19. Employee 0..1 : N Orders (processed_by). Працівник обробляє 0..N замовлень. Замовлення має 0..1 працівника, поки його не призначено.
-20. Employee 0..1 : N Delivery (shipped_by). Працівник відправляє 0..N доставок. Доставка має 0..1 відправника, поки не відправлено.
+4. Customer M : N Product (вішліст). Клієнт додає у вішліст 0..N товарів. Товар може бути у вішлісті 0..N клієнтів. Зв'язок без власних атрибутів, тому без асоціативної сутності. 
+5. Pet 1 : N Review_Pet_Snapshot. Тварина має 0..N снапшотів. Снапшот стосується рівно однієї тварини.
+6. Review 1 : N Review_Pet_Snapshot. Відгук містить 0..N снапшотів. Снапшот належить рівно одному відгуку. Тут асоціативна сутність між Review і Pet, щоб зберегти інформацію, якщо вона зміниться або її буде позначено видаленою.
+7. Product 1 : N Review. Товар має 0..N відгуків. Відгук стосується рівно одного товару.
+8. Category 1 : N Product. Категорія містить 0..N товарів. Товар належить рівно одній категорії.
+9. Supplier 1 : N Product. Постачальник постачає 0..N товарів. Товар має рівно одного постачальника.
+10. Product 1 : N Prod_Img. Товар має 0..N зображень. Зображення належить рівно одному товару.
+11. Product M : N Tags. Товар має 0..N тегів. Тег стосується 0..N товарів.
+12. Orders 1 : N Order_Prod. Замовлення містить 1..N позицій. Позиція належить рівно одному замовленню.
+13. Product 1 : N Order_Prod. Товар є у 0..N позиціях. Позиція стосується рівно одного товару. Асоціативна сутність з quantity і price_at_purchase на випадок зміни ціни.
+14. Orders 1 : N Payment. Замовлення має 0..N оплат (повторні спроби, часткова оплата). Оплата належить рівно одному замовленню.
+15. Orders 1 : N Delivery. Замовлення має 0..N доставок. Доставка належить рівно одному замовленню.
+16. Employee 1 : N Product (added_by). Працівник додає 0..N товарів. товар додано рівно одним працівником.
+17. Employee 0..1 : N Orders (processed_by). Працівник обробляє 0..N замовлень. Замовлення має 0..1 працівника, поки його не призначено.
+18. Employee 0..1 : N Delivery (shipped_by). Працівник відправляє 0..N доставок. Доставка має 0..1 відправника, поки не відправлено.
 
 4. Критерії прийняття
 
@@ -61,3 +57,7 @@ AC-6 (відтворюваність). Діаграма відповідає spe
 AC-7 (м'яке видалення). Сутності, на які посилається історія (Customer, Pet, Supplier, Product, Review, Employee), позначаються is_deleted, а не видаляються фізично.
 
 AC-8 (домен значень). rating — ціле від 1 до 5.
+
+5. Свідомі винятки з 3НФ
+1. Review_Pet_Snapshot дублює атрибути Pet. Тварина з часом змінюється або видаляється, а відгук має зберегти її стан на момент написання. Дублювання навмисне.
+2. Order_Prod.price_at_purchase дублює Product.price. Ціна товару змінюється, а сума минулого замовлення не повинна.
