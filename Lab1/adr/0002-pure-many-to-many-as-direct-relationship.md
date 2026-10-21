@@ -15,12 +15,12 @@ Decision Outcome
 Chosen option: "прямий зв'язок }o--o{", because зв'язки не мають власних атрибутів, а сполучні таблиці належать до фізичної схеми, яка поза межами роботи.
 
 Consequences
-Good, because модель відповідає вимозі завдання й критерію AC-4.
+Good, because модель відповідає вимозі завдання й критерію AC-9.
 Good, because у діаграмі менше сутностей.
 Bad, because у майбутньому, якщо вішліст отримає атрибути (наприклад, дату додавання), зв'язок доведеться перетворити на асоціативну сутність.
 Confirmation
 
-У model.mmd немає сутностей Wishlist і Prod_Tag, а є зв'язки Customer }o--o{ Product і Product }o--o{ Tags.
+У petshop.mmd немає сутностей Wishlist і Prod_Tag, а є зв'язки Customer }o--o{ Product і Product }o--o{ Tags.
 
 Pros and Cons of the Options
 Окремі сутності Wishlist і Prod_Tag

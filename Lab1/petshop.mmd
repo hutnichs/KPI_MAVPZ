@@ -82,11 +82,9 @@ erDiagram
     Review {
         int review_id PK
         int customer_id FK
-        int pet_id FK
         int prod_id FK
         int rating
         string text
-        string pet_info
         boolean is_deleted
     }
     Review_Pet_Snapshot {
@@ -126,5 +124,5 @@ erDiagram
     Orders ||--o{ Payment : "оплачується через"
     Orders ||--o{ Delivery : "доставляється через"
     Employee ||--o{ Product : "додає товари"
-    Employee ||--o{ Orders : "обробляє замовлення"
-    Employee ||--o{ Delivery : "відправляє доставки"
+    Employee |o--o{ Orders : "обробляє замовлення"
+    Employee |o--o{ Delivery : "відправляє доставки"

@@ -18,7 +18,7 @@ Good, because сума минулих замовлень не залежить �
 Bad, because дублювання Product.price. Це свідомий виняток з 3НФ (spec.md, розділ 5, п. 2).
 Confirmation
 
-У model.mmd сутність Order_Prod має поля quantity і price_at_purchase.
+У petshop.mmd сутність Order_Prod має поля quantity і price_at_purchase.
 
 Pros and Cons of the Options
 Ціна з Product.price

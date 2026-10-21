@@ -6,7 +6,7 @@ Context and Problem Statement
 Decision Drivers
 один відгук може стосуватися 0..N тварин
 стан тварини на момент відгуку не має змінюватися разом із Pet
-асоціативна сутність допустима лише тоді, коли зв'язок має власні атрибути (AC-4)
+асоціативна сутність допустима лише тоді, коли зв'язок має власні атрибути (AC-9)
 дані мають бути структурованими, а не вільним текстом
 Considered Options
 Review.pet_id (прямий FK)
@@ -23,7 +23,7 @@ Good, because стан структурований: кожен атрибут �
 Bad, because атрибути Pet дублюються. Це свідомий виняток з 3НФ (spec.md, розділ 5, п. 1).
 Confirmation
 
-У model.mmd є сутність Review_Pet_Snapshot зі складеним PK (pet_id, review_id) і зв'язками 1 : N до Pet та Review; поля Review.pet_id і Review.pet_info відсутні.
+У petshop.mmd є сутність Review_Pet_Snapshot зі складеним PK (pet_id, review_id) і зв'язками 1 : N до Pet та Review; поля Review.pet_id і Review.pet_info відсутні.
 
 Pros and Cons of the Options
 Review.pet_id
@@ -37,7 +37,7 @@ Review_Pet + Review.pet_info
 Good, because стан тварини якось зберігається.
 Bad, because одне текстове поле на кілька тварин, незрозуміло, що до якої належить.
 Bad, because вільний текст не можна структуровано перевірити.
-Bad, because сполучна таблиця без атрибутів суперечить AC-4.
+Bad, because сполучна таблиця без атрибутів суперечить AC-9.
 Review_Pet_Snapshot
 Good, because кілька тварин, структурований стан, історія захищена.
 Bad, because дублювання даних (навмисне).
