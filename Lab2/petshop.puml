@@ -1,0 +1,37 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Клієнт" as Customer
+actor "Працівник" as Employee
+actor "Платіжний шлюз" as PGW <<system>>
+actor "Служба доставки" as DSA <<system>>
+
+rectangle "Онлайн-зоомагазин" {
+  usecase "UC-01 Зареєструватися" as UC01
+  usecase "UC-02 Керувати тваринами" as UC02
+  usecase "UC-03 Шукати товари" as UC03
+  usecase "UC-04 Оформити замовлення" as UC04
+  usecase "UC-05 Оплатити замовлення" as UC05
+  usecase "UC-06 Залишити відгук" as UC06
+  usecase "UC-07 Керувати каталогом" as UC07
+  usecase "UC-08 Обробити замовлення" as UC08
+  usecase "UC-09 Відправити замовлення" as UC09
+  usecase "UC-10 Оновити статус доставки" as UC10
+}
+
+Customer --> UC01
+Customer --> UC02
+Customer --> UC03
+Customer --> UC04
+Customer --> UC05
+Customer --> UC06
+
+Employee --> UC07
+Employee --> UC08
+Employee --> UC09
+
+UC05 --> PGW
+UC09 --> DSA
+DSA --> UC10
+@enduml
