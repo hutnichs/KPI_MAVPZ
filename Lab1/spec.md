@@ -14,7 +14,7 @@
 8. Orders: `order_id` (PK, int), `customer_id` (FK, int), `processed_by` (FK, int), `status` (varchar), `date` (date).
 9. Order_Prod: `order_id` (PK/FK, int), `prod_id` (PK/FK, int), `quantity` (int), `price_at_purchase` (decimal).
 10. Delivery: `del_id` (PK, int), `order_id` (FK, int), `shipped_by` (FK, int), `tracking_num` (varchar), `status` (varchar), `date` (date), `address` (varchar).
-11. Payment: `pay_id` (PK, int), `order_id` (FK, int), `amount` (decimal), `status` (varchar), `date` (date).
+11. Payment: `pay_id` (PK, int), `order_id` (FK, int), `amount` (decimal), `status` (varchar), `date` (timestamp), `failure_reason` (varchar).
 12. Review: `review_id` (PK, int), `customer_id` (FK, int), `prod_id` (FK, int), `rating` (int), `text` (varchar), `is_deleted` (boolean).
 13. Review_Pet_Snapshot: `pet_id` (PK/FK, int), `review_id` (PK/FK, int), `name` (varchar), `species` (varchar), `breed` (varchar), `gender` (varchar), `birth_date` (date), `special_needs` (varchar) (збереження стану тварини на момент написання відгуку).
 14. Employee: `empl_id` (PK, int), `name` (varchar), `surname` (varchar), `email` (varchar), `phone` (varchar), `role` (varchar), `hired_at` (date), `is_deleted` (boolean).
