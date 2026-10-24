@@ -1,0 +1,60 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+
+actor "Відвідувач" as Visitor
+actor "Клієнт" as Customer
+actor "Працівник" as Employee
+actor "Платіжний шлюз" as PGW <<system>>
+actor "Служба доставки" as DSA <<system>>
+
+' Узагальнення акторів: Клієнт є зареєстрованим Відвідувачем
+Visitor <|-- Customer
+
+rectangle "Онлайн-зоомагазин" {
+  usecase "UC-01 Зареєструватися" as UC01
+  usecase "UC-02 Керувати тваринами" as UC02
+  usecase "UC-03 Шукати товари" as UC03
+  usecase "UC-04 Оформити замовлення" as UC04
+  usecase "UC-05 Оплатити замовлення" as UC05
+  usecase "UC-06 Залишити відгук" as UC06
+  usecase "UC-07 Керувати каталогом" as UC07
+  usecase "UC-08 Обробити замовлення" as UC08
+  usecase "UC-09 Відправити замовлення" as UC09
+  usecase "UC-10 Оновити статус доставки" as UC10
+  usecase "UC-11 Повторити оплату" as UC11
+  usecase "UC-12 Додати тварин до відгуку" as UC12
+  usecase "UC-13 Видалити відгук" as UC13
+  usecase "UC-14 Отримати кошти назад" as UC14
+  usecase "UC-15 Повідомити результат платежу" as UC15
+}
+
+' Відвідувач (його можливості успадковує Клієнт)
+Visitor --> UC01
+Visitor --> UC03
+
+' Клієнт
+Customer --> UC02
+Customer --> UC04
+Customer --> UC05
+Customer --> UC06
+Customer --> UC11
+Customer --> UC13
+Customer --> UC14
+
+' Працівник
+Employee --> UC07
+Employee --> UC08
+Employee --> UC09
+
+' include / extend
+UC05 ..> UC15 : <<include>>
+UC11 ..> UC05 : <<extend>>\n[останній Payment = failed]
+UC14 ..> UC15 : <<extend>>\n[платіж не можна зарахувати]
+UC12 ..> UC06 : <<extend>>\n[Клієнт обрав тварин]
+
+' Зовнішні системи, що самі ініціюють взаємодію
+UC15 <-- PGW
+UC14 <-- PGW
+UC10 <-- DSA
+@enduml
