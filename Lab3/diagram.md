@@ -17,11 +17,11 @@ sequenceDiagram
     activate PS
     PS->>DB: getOrderAndPayments(order_id = 1001)
     activate DB
-    DB-->>PS: order(status="new"), payments=[]
+    DB-->>PS: Orders(status="new"), Payment=[]
     deactivate DB
     PS->>DB: createPayment(order_id = 1001, amount = 200.00, status = "pending", date = now)
     activate DB
-    DB-->>PS: payment(pay_id = P1, status = "pending")
+    DB-->>PS: Payment(pay_id = P1, status = "pending")
     deactivate DB
     PS->>PGW: createPaymentRequest(pay_id = P1, amount = 200.00)
     activate PGW
@@ -71,29 +71,37 @@ sequenceDiagram
     activate PS
     PS->>DB: getOrderAndPayments(order_id = 1001)
     activate DB
-    DB-->>PS: order(status="new"), lastPayment(pay_id=P1, status="failed"), count=1
+    DB-->>PS: Orders(status="new"), Payment(pay_id=P1, status="failed"), count=1
     deactivate DB
-    PS->>DB: createPayment(order_id = 1001, amount = 200.00, status = "pending", date = now)
-    activate DB
-    DB-->>PS: payment(pay_id = P2, status = "pending")
-    deactivate DB
-    PS->>PGW: createPaymentRequest(pay_id = P2, amount = 200.00)
-    activate PGW
-    PGW-->>PS: checkoutUrl
-    deactivate PGW
-    PS-->>Page: redirectToGateway(checkoutUrl)
+
+    alt ліміт спроб не вичерпано (count менше 5)
+        PS->>DB: createPayment(order_id = 1001, amount = 200.00, status = "pending", date = now)
+        activate DB
+        DB-->>PS: Payment(pay_id = P2, status = "pending")
+        deactivate DB
+        PS->>PGW: createPaymentRequest(pay_id = P2, amount = 200.00)
+        activate PGW
+        PGW-->>PS: checkoutUrl
+        deactivate PGW
+        PS-->>Page: redirectToGateway(checkoutUrl)
+        Page-->>Customer: redirect(checkoutUrl)
+    else ліміт спроб вичерпано
+        PS-->>Page: rejectLimitReached("Ліміт спроб оплати вичерпано")
+        Page-->>Customer: showErrorMessage("Ліміт спроб оплати вичерпано")
+    end
     deactivate PS
-    Page-->>Customer: redirect(checkoutUrl)
     deactivate Page
 
-    PGW->>PS: paymentCallback(pay_id = P2, status = "success", signature)
-    activate PS
-    PS->>DB: updatePaymentAndOrderPaid(pay_id = P2, order_id = 1001, prod_id, quantity = 2)
-    activate DB
-    DB-->>PS: updated(Product.stock = 8)
-    deactivate DB
-    PS-->>PGW: HTTP 200 OK
-    deactivate PS
+    opt платіж створено, шлюз надсилає результат
+        PGW->>PS: paymentCallback(pay_id = P2, status = "success", signature)
+        activate PS
+        PS->>DB: updatePaymentAndOrderPaid(pay_id = P2, order_id = 1001, prod_id, quantity = 2)
+        activate DB
+        DB-->>PS: updated(Product.stock = 8)
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
+        deactivate PS
+    end
 ```
 
 ## SC-03: Оплату не можна розпочати (`UC-05`, `REQ-009`)
@@ -112,7 +120,7 @@ sequenceDiagram
     activate PS
     PS->>DB: getOrderAndPayments(order_id = 1001)
     activate DB
-    DB-->>PS: orderState, paymentState
+    DB-->>PS: Orders.status, Payment.status
     deactivate DB
 
     alt Orders.status == "cancelled"
@@ -143,11 +151,16 @@ sequenceDiagram
     activate PS
     PS->>DB: countPayments(order_id = 1001)
     activate DB
-    DB-->>PS: count = 5, lastPayment.status = "failed"
+    DB-->>PS: count = 5, Payment(status = "failed")
     deactivate DB
-    PS-->>Page: retryEnabled = false
+    alt ліміт спроб не вичерпано (count менше 5)
+        PS-->>Page: retryEnabled = true
+        Page-->>Customer: renderRetryButton()
+    else ліміт спроб вичерпано (count = 5)
+        PS-->>Page: retryEnabled = false
+        Page-->>Customer: renderDisabledRetryButton()
+    end
     deactivate PS
-    Page-->>Customer: renderDisabledRetryButton()
     deactivate Page
 
     Customer->>Page: clickRetryPayment(order_id = 1001)
@@ -158,9 +171,14 @@ sequenceDiagram
     activate DB
     DB-->>PS: count = 5
     deactivate DB
-    PS-->>Page: rejectLimitReached("Ліміт спроб оплати вичерпано")
+    alt ліміт спроб не вичерпано (count менше 5)
+        PS-->>Page: paymentAllowed
+        Page-->>Customer: redirectToPayment()
+    else ліміт спроб вичерпано (count = 5)
+        PS-->>Page: rejectLimitReached("Ліміт спроб оплати вичерпано")
+        Page-->>Customer: showErrorMessage("Ліміт спроб оплати вичерпано")
+    end
     deactivate PS
-    Page-->>Customer: showErrorMessage("Ліміт спроб оплати вичерпано")
     deactivate Page
 ```
 
@@ -190,11 +208,16 @@ sequenceDiagram
     activate PS
     PS->>DB: getLastPayment(order_id = 1001)
     activate DB
-    DB-->>PS: payment(status = "failed", failure_reason = "declined"), attempts = 1
+    DB-->>PS: Payment(status = "failed", failure_reason = "declined"), attempts = 1
     deactivate DB
-    PS-->>Page: showFailure("Оплату відхилено", retryEnabled = true)
+    alt ліміт спроб не вичерпано (attempts менше 5)
+        PS-->>Page: showFailure("Оплату відхилено", retryEnabled = true)
+        Page-->>Customer: renderFailureAndRetryButton()
+    else ліміт спроб вичерпано (attempts = 5)
+        PS-->>Page: showFailure("Оплату відхилено", retryEnabled = false)
+        Page-->>Customer: renderFailureWithoutRetryButton()
+    end
     deactivate PS
-    Page-->>Customer: renderFailureAndRetryButton()
     deactivate Page
 ```
 
@@ -244,7 +267,7 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentById(pay_id = P1)
     activate DB
-    DB-->>PS: payment(status = "paid")
+    DB-->>PS: Payment(status = "paid")
     deactivate DB
 
     alt статус вже відповідає події (paid/success, failed/declined, refunded/refunded)
@@ -269,13 +292,21 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentById(pay_id = P1)
     activate DB
-    DB-->>PS: payment(status = "paid")
+    DB-->>PS: Payment(pay_id = P1, status)
     deactivate DB
-    PS->>SecLog: logConflictEvent(utc_timestamp, pay_id = P1, http_status = 409)
-    activate SecLog
-    SecLog-->>PS: logged
-    deactivate SecLog
-    PS-->>PGW: HTTP 409 Conflict
+    alt Payment.status == "paid" (суперечить status = "declined")
+        PS->>SecLog: logConflictEvent(utc_timestamp, pay_id = P1, http_status = 409)
+        activate SecLog
+        SecLog-->>PS: logged
+        deactivate SecLog
+        PS-->>PGW: HTTP 409 Conflict
+    else Payment.status == "pending"
+        PS->>DB: markPaymentFailed(pay_id = P1, status = "failed", failure_reason = "declined")
+        activate DB
+        DB-->>PS: ok
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 ```
 
@@ -292,13 +323,18 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentAndOrder(pay_id = P1)
     activate DB
-    DB-->>PS: payment(status="failed", failure_reason="timeout"), order(order_id=1001, status="new")
+    DB-->>PS: Payment(status="failed", failure_reason="timeout"), Orders(order_id=1001, status)
     deactivate DB
-    PS->>DB: settlePaymentAndOrderPaid(pay_id = P1, order_id = 1001, prod_id, quantity = 2)
-    activate DB
-    DB-->>PS: committed(Payment.status="paid", Orders.status="paid", Product.stock=8)
-    deactivate DB
-    PS-->>PGW: HTTP 200 OK
+    alt Orders.status == "new"
+        PS->>DB: settlePaymentAndOrderPaid(pay_id = P1, order_id = 1001, prod_id, quantity = 2)
+        activate DB
+        DB-->>PS: committed(Payment.status="paid", Orders.status="paid", Product.stock=8)
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
+    else Orders.status != "new"
+        PS->>PS: handleLateSuccess(pay_id = P1) — див. SC-12, SC-13
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 ```
 
@@ -311,14 +347,19 @@ sequenceDiagram
     participant PS as Сервіс оплат (Payment Service)
     participant SecLog as Журнал безпеки (Security Log)
 
-    PGW->>PS: paymentCallback(pay_id = P1, status = "success", invalidSignature)
+    PGW->>PS: paymentCallback(pay_id = P1, status = "success", signature)
     activate PS
-    PS->>PS: verifyHmacSha256(payload, invalidSignature)
-    PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P1, http_status = 401)
-    activate SecLog
-    SecLog-->>PS: logged
-    deactivate SecLog
-    PS-->>PGW: HTTP 401 Unauthorized
+    PS->>PS: verifyHmacSha256(payload, signature)
+    alt підпис недійсний
+        PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P1, http_status = 401)
+        activate SecLog
+        SecLog-->>PS: logged
+        deactivate SecLog
+        PS-->>PGW: HTTP 401 Unauthorized
+    else підпис дійсний
+        PS->>PS: processCallback(pay_id = P1) — див. SC-01
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 ```
 
@@ -336,13 +377,18 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentById(pay_id = P9999)
     activate DB
-    DB-->>PS: notFound
+    DB-->>PS: Payment(pay_id = P9999) або notFound
     deactivate DB
-    PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P9999, http_status = 404)
-    activate SecLog
-    SecLog-->>PS: logged
-    deactivate SecLog
-    PS-->>PGW: HTTP 404 Not Found
+    alt платіж не знайдено
+        PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P9999, http_status = 404)
+        activate SecLog
+        SecLog-->>PS: logged
+        deactivate SecLog
+        PS-->>PGW: HTTP 404 Not Found
+    else платіж знайдено
+        PS->>PS: processCallback(pay_id = P9999) — див. SC-01
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 ```
 
@@ -359,26 +405,31 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentAndOrder(pay_id = P1)
     activate DB
-    DB-->>PS: payment(status="failed", failure_reason="timeout"), order(order_id=1001, status="paid")
+    DB-->>PS: Payment(status="failed", failure_reason="timeout"), Orders(order_id=1001, status)
     deactivate DB
 
-    PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
-    activate PGW
-    PGW-->>PS: refundAccepted
-    deactivate PGW
+    alt Orders.status == "paid"
+        PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
+        activate PGW
+        PGW-->>PS: refundAccepted
+        deactivate PGW
 
-    PS->>DB: markPaymentPaidKeepOrder(pay_id = P1, order_id = 1001)
-    activate DB
-    DB-->>PS: committed(Payment.status="paid", Orders.status="paid")
-    deactivate DB
-    PS-->>PGW: HTTP 200 OK
+        PS->>DB: markPaymentPaidKeepOrder(pay_id = P1, order_id = 1001)
+        activate DB
+        DB-->>PS: committed(Payment.status="paid", Orders.status="paid")
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
 
-    PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
-    PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
-    activate DB
-    DB-->>PS: committed
-    deactivate DB
-    PS-->>PGW: HTTP 200 OK
+        PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
+        PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+        activate DB
+        DB-->>PS: committed
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
+    else Orders.status != "paid"
+        PS->>PS: handleLateSuccess(pay_id = P1) — див. SC-09, SC-13
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 ```
 
@@ -395,25 +446,30 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentAndOrder(pay_id = P1)
     activate DB
-    DB-->>PS: payment(status="failed", failure_reason="timeout"), order(order_id=1001, status="cancelled")
+    DB-->>PS: Payment(status="failed", failure_reason="timeout"), Orders(order_id=1001, status)
     deactivate DB
-    PS->>DB: markPaymentPaidKeepCancelledOrder(pay_id = P1, order_id = 1001)
-    activate DB
-    DB-->>PS: committed(Payment.status="paid", Orders.status="cancelled")
-    deactivate DB
-    PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
-    activate PGW
-    PGW-->>PS: refundAccepted
-    deactivate PGW
-    PS-->>PGW: HTTP 200 OK
+    alt Orders.status == "cancelled"
+        PS->>DB: markPaymentPaidKeepCancelledOrder(pay_id = P1, order_id = 1001)
+        activate DB
+        DB-->>PS: committed(Payment.status="paid", Orders.status="cancelled")
+        deactivate DB
+        PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
+        activate PGW
+        PGW-->>PS: refundAccepted
+        deactivate PGW
+        PS-->>PGW: HTTP 200 OK
 
-    PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
-    activate PS
-    PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
-    activate DB
-    DB-->>PS: committed
-    deactivate DB
-    PS-->>PGW: HTTP 200 OK
+        PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
+        activate PS
+        PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+        activate DB
+        DB-->>PS: committed
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
+    else Orders.status != "cancelled"
+        PS->>PS: handleLateSuccess(pay_id = P1) — див. SC-09, SC-12
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 ```
 
@@ -430,25 +486,30 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentAndOrder(pay_id = P2)
     activate DB
-    DB-->>PS: payment(status="pending"), order(order_id=1001, status="paid"), p1(status="paid")
+    DB-->>PS: Payment(pay_id=P2, status="pending"), Orders(order_id=1001, status), Payment(pay_id=P1, status)
     deactivate DB
-    PS->>DB: markPaymentPaidKeepOrder(pay_id = P2, order_id = 1001)
-    activate DB
-    DB-->>PS: committed(Payment.status="paid", Orders.status="paid")
-    deactivate DB
-    PS->>PGW: refundPayment(pay_id = P2, amount = 200.00)
-    activate PGW
-    PGW-->>PS: refundAccepted
-    deactivate PGW
-    PS-->>PGW: HTTP 200 OK
+    alt Orders.status == "paid"
+        PS->>DB: markPaymentPaidKeepOrder(pay_id = P2, order_id = 1001)
+        activate DB
+        DB-->>PS: committed(Payment.status="paid", Orders.status="paid")
+        deactivate DB
+        PS->>PGW: refundPayment(pay_id = P2, amount = 200.00)
+        activate PGW
+        PGW-->>PS: refundAccepted
+        deactivate PGW
+        PS-->>PGW: HTTP 200 OK
 
-    PGW->>PS: refundCallback(pay_id = P2, status = "refunded", signature)
-    activate PS
-    PS->>DB: markPaymentRefunded(pay_id = P2, status = "refunded")
-    activate DB
-    DB-->>PS: committed(Payment.status="refunded", Payment_P1.status="paid")
-    deactivate DB
-    PS-->>PGW: HTTP 200 OK
+        PGW->>PS: refundCallback(pay_id = P2, status = "refunded", signature)
+        activate PS
+        PS->>DB: markPaymentRefunded(pay_id = P2, status = "refunded")
+        activate DB
+        DB-->>PS: committed(Payment(pay_id=P2, status="refunded"), Payment(pay_id=P1, status="paid"))
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
+    else Orders.status != "paid"
+        PS->>PS: processCallback(pay_id = P2) — див. SC-01, SC-02
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 ```
 
@@ -467,17 +528,22 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentOrderAndStock(pay_id = P1)
     activate DB
-    DB-->>PS: payment(status="pending"), order(status="new"), Product.stock=1 < Order_Prod.quantity=2
+    DB-->>PS: Payment(status="pending"), Orders(status="new"), Product.stock=1, Order_Prod.quantity=2
     deactivate DB
-    PS->>DB: markPaymentPaidAndCancelOrder(pay_id = P1, order_id = 1001)
-    activate DB
-    DB-->>PS: committed(Payment.status="paid", Orders.status="cancelled", Product.stock=1)
-    deactivate DB
-    PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
-    activate PGW
-    PGW-->>PS: refundAccepted
-    deactivate PGW
-    PS-->>PGW: HTTP 200 OK
+    alt Product.stock менше Order_Prod.quantity
+        PS->>DB: markPaymentPaidAndCancelOrder(pay_id = P1, order_id = 1001)
+        activate DB
+        DB-->>PS: committed(Payment.status="paid", Orders.status="cancelled", Product.stock=1)
+        deactivate DB
+        PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
+        activate PGW
+        PGW-->>PS: refundAccepted
+        deactivate PGW
+        PS-->>PGW: HTTP 200 OK
+    else Product.stock >= Order_Prod.quantity
+        PS->>PS: completeOrder(pay_id = P1) — див. SC-01
+        PS-->>PGW: HTTP 200 OK
+    end
     deactivate PS
 
     Customer->>Page: viewOrderPage(order_id = 1001)
