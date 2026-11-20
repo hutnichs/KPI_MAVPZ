@@ -177,6 +177,7 @@ sequenceDiagram
     else ліміт спроб вичерпано (count = 5)
         PS-->>Page: rejectLimitReached("Ліміт спроб оплати вичерпано")
         Page-->>Customer: showErrorMessage("Ліміт спроб оплати вичерпано")
+        Page-->>Customer: renderDisabledRetryButton()
     end
     deactivate PS
     deactivate Page
@@ -242,7 +243,7 @@ sequenceDiagram
         opt є прострочені платежі
             PS->>DB: markPaymentTimeout(pay_id = P1, status = "failed", failure_reason = "timeout")
             activate DB
-            DB-->>PS: ok
+            DB-->>PS: ok(Orders.status = "new", Product.stock не змінено)
             deactivate DB
         end
         deactivate PS
@@ -250,7 +251,20 @@ sequenceDiagram
 
     Customer->>Page: viewOrderPage(order_id = 1001)
     activate Page
-    Page-->>Customer: showMessage("Таймаут оплати", retryEnabled = true)
+    Page->>PS: getOrderPaymentState(order_id = 1001)
+    activate PS
+    PS->>DB: getLastPaymentAndCount(order_id = 1001)
+    activate DB
+    DB-->>PS: Payment(status = "failed", failure_reason = "timeout"), attempts = 1
+    deactivate DB
+    alt ліміт спроб не вичерпано (attempts менше 5)
+        PS-->>Page: showFailure("Шлюз не відповів вчасно", retryEnabled = true)
+        Page-->>Customer: renderFailureAndRetryButton("Шлюз не відповів вчасно")
+    else ліміт спроб вичерпано (attempts = 5)
+        PS-->>Page: showFailure("Шлюз не відповів вчасно", retryEnabled = false)
+        Page-->>Customer: renderFailureWithoutRetryButton("Шлюз не відповів вчасно")
+    end
+    deactivate PS
     deactivate Page
 ```
 
@@ -297,13 +311,13 @@ sequenceDiagram
     alt Payment.status == "paid" (суперечить status = "declined")
         PS->>SecLog: logConflictEvent(utc_timestamp, pay_id = P1, http_status = 409)
         activate SecLog
-        SecLog-->>PS: logged
+        SecLog-->>PS: logged(Payment.status = "paid", Orders.status і Product.stock без змін)
         deactivate SecLog
         PS-->>PGW: HTTP 409 Conflict
     else Payment.status == "pending"
         PS->>DB: markPaymentFailed(pay_id = P1, status = "failed", failure_reason = "declined")
         activate DB
-        DB-->>PS: ok
+        DB-->>PS: ok(Orders.status = "new", Product.stock без змін)
         deactivate DB
         PS-->>PGW: HTTP 200 OK
     end
@@ -353,12 +367,11 @@ sequenceDiagram
     alt підпис недійсний
         PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P1, http_status = 401)
         activate SecLog
-        SecLog-->>PS: logged
+        SecLog-->>PS: logged(дані не змінено)
         deactivate SecLog
         PS-->>PGW: HTTP 401 Unauthorized
     else підпис дійсний
         PS->>PS: processCallback(pay_id = P1) — див. SC-01
-        PS-->>PGW: HTTP 200 OK
     end
     deactivate PS
 ```
@@ -377,17 +390,16 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentById(pay_id = P9999)
     activate DB
-    DB-->>PS: Payment(pay_id = P9999) або notFound
+    DB-->>PS: notFound або Payment(pay_id = P9999)
     deactivate DB
     alt платіж не знайдено
         PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P9999, http_status = 404)
         activate SecLog
-        SecLog-->>PS: logged
+        SecLog-->>PS: logged(дані не змінено)
         deactivate SecLog
         PS-->>PGW: HTTP 404 Not Found
     else платіж знайдено
         PS->>PS: processCallback(pay_id = P9999) — див. SC-01
-        PS-->>PGW: HTTP 200 OK
     end
     deactivate PS
 ```
