@@ -52,8 +52,10 @@ sequenceDiagram
         DB-->>PS: ok
         PS->>DB: updateOrderStatus(order_id = 1001, status = "paid")
         DB-->>PS: ok
-        PS->>DB: decrementStock(prod_id, quantity = 2)
-        DB-->>PS: ok(Product.stock = 8)
+        loop для кожної позиції Order_Prod
+            PS->>DB: decrementStock(prod_id, quantity = Order_Prod.quantity)
+            DB-->>PS: ok(Product.stock зменшено, для "Корм А" Product.stock = 8)
+        end
     else товару не вистачає хоча б для однієї позиції (REQ-004, див. SC-15)
         PS->>DB: markPaymentPaidAndCancelOrder(pay_id = P1, order_id = 1001)
         DB-->>PS: ok(Orders.status = "cancelled", Product.stock без змін)
@@ -127,8 +129,10 @@ sequenceDiagram
         DB-->>PS: ok
         PS->>DB: updateOrderStatus(order_id = 1001, status = "paid")
         DB-->>PS: ok
-        PS->>DB: decrementStock(prod_id, quantity = 2)
-        DB-->>PS: ok(Product.stock = 8)
+        loop для кожної позиції Order_Prod
+            PS->>DB: decrementStock(prod_id, quantity = Order_Prod.quantity)
+            DB-->>PS: ok(Product.stock зменшено, для "Корм А" Product.stock = 8)
+        end
     else товару не вистачає хоча б для однієї позиції (REQ-004, див. SC-15)
         PS->>DB: markPaymentPaidAndCancelOrder(pay_id = P2, order_id = 1001)
         DB-->>PS: ok(Orders.status = "cancelled", Product.stock без змін)
@@ -405,8 +409,10 @@ sequenceDiagram
         DB-->>PS: ok
         PS->>DB: updateOrderStatus(order_id = 1001, status = "paid")
         DB-->>PS: ok
-        PS->>DB: decrementStock(prod_id, quantity = 2)
-        DB-->>PS: ok(Product.stock = 8)
+        loop для кожної позиції Order_Prod
+            PS->>DB: decrementStock(prod_id, quantity = Order_Prod.quantity)
+            DB-->>PS: ok(Product.stock зменшено, для "Корм А" Product.stock = 8)
+        end
     else Orders.status == "new", але товару не вистачає хоча б для однієї позиції (REQ-004)
         PS->>DB: markPaymentPaidAndCancelOrder(pay_id = P1, order_id = 1001)
         DB-->>PS: ok(Orders.status = "cancelled", Product.stock без змін)
@@ -489,6 +495,7 @@ sequenceDiagram
     participant PGW as Платіжний шлюз (Payment Gateway)
     participant PS as Сервіс оплат (Payment Service)
     participant DB as База даних (Database)
+    participant SecLog as Журнал безпеки (Security Log)
 
     PGW->>PS: paymentCallback(pay_id = P1, status = "success", signature)
     activate PS
@@ -513,11 +520,26 @@ sequenceDiagram
         PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
         activate PS
         PS->>PS: verifyHmacSha256(payload, signature)
-        PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+        PS->>DB: getPaymentById(pay_id = P1)
         activate DB
-        DB-->>PS: committed(Payment.status = "refunded", Orders.status = "paid", Product.stock без змін)
+        DB-->>PS: Payment(pay_id = P1, status = currentStatus)
         deactivate DB
-        PS-->>PGW: HTTP 200 OK
+        alt Payment.status = "paid" (REQ-005)
+            PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+            activate DB
+            DB-->>PS: committed(Payment.status = "refunded", Orders.status = "paid", Product.stock без змін)
+            deactivate DB
+            PS-->>PGW: HTTP 200 OK
+        else Payment.status = "refunded" (дубль, REQ-011)
+            Note over PS,DB: нічого не змінюється, повернення не надсилається
+            PS-->>PGW: HTTP 200 OK
+        else інший статус платежу (REQ-016)
+            PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P1, http_status = 409)
+            activate SecLog
+            SecLog-->>PS: logged
+            deactivate SecLog
+            PS-->>PGW: HTTP 409 Conflict
+        end
     else Orders.status != "paid"
         Note over PS,DB: new — див. SC-09, cancelled — див. SC-13
         PS-->>PGW: HTTP 200 OK
@@ -533,6 +555,7 @@ sequenceDiagram
     participant PGW as Платіжний шлюз (Payment Gateway)
     participant PS as Сервіс оплат (Payment Service)
     participant DB as База даних (Database)
+    participant SecLog as Журнал безпеки (Security Log)
 
     PGW->>PS: paymentCallback(pay_id = P1, status = "success", signature)
     activate PS
@@ -557,11 +580,26 @@ sequenceDiagram
         PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
         activate PS
         PS->>PS: verifyHmacSha256(payload, signature)
-        PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+        PS->>DB: getPaymentById(pay_id = P1)
         activate DB
-        DB-->>PS: committed(Payment.status = "refunded", Orders.status = "cancelled")
+        DB-->>PS: Payment(pay_id = P1, status = currentStatus)
         deactivate DB
-        PS-->>PGW: HTTP 200 OK
+        alt Payment.status = "paid" (REQ-005)
+            PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+            activate DB
+            DB-->>PS: committed(Payment.status = "refunded", Orders.status = "cancelled")
+            deactivate DB
+            PS-->>PGW: HTTP 200 OK
+        else Payment.status = "refunded" (дубль, REQ-011)
+            Note over PS,DB: нічого не змінюється, повернення не надсилається
+            PS-->>PGW: HTTP 200 OK
+        else інший статус платежу (REQ-016)
+            PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P1, http_status = 409)
+            activate SecLog
+            SecLog-->>PS: logged
+            deactivate SecLog
+            PS-->>PGW: HTTP 409 Conflict
+        end
     else Orders.status != "cancelled"
         Note over PS,DB: new — див. SC-09, paid — див. SC-12
         PS-->>PGW: HTTP 200 OK
@@ -577,6 +615,7 @@ sequenceDiagram
     participant PGW as Платіжний шлюз (Payment Gateway)
     participant PS as Сервіс оплат (Payment Service)
     participant DB as База даних (Database)
+    participant SecLog as Журнал безпеки (Security Log)
 
     PGW->>PS: paymentCallback(pay_id = P2, status = "success", signature)
     activate PS
@@ -601,11 +640,26 @@ sequenceDiagram
         PGW->>PS: refundCallback(pay_id = P2, status = "refunded", signature)
         activate PS
         PS->>PS: verifyHmacSha256(payload, signature)
-        PS->>DB: markPaymentRefunded(pay_id = P2, status = "refunded")
+        PS->>DB: getPaymentById(pay_id = P2)
         activate DB
-        DB-->>PS: committed(Payment P2 status = "refunded", Payment P1 status = "paid")
+        DB-->>PS: Payment(pay_id = P2, status = currentStatus)
         deactivate DB
-        PS-->>PGW: HTTP 200 OK
+        alt Payment.status = "paid" (REQ-005)
+            PS->>DB: markPaymentRefunded(pay_id = P2, status = "refunded")
+            activate DB
+            DB-->>PS: committed(Payment P2 status = "refunded", Payment P1 status = "paid")
+            deactivate DB
+            PS-->>PGW: HTTP 200 OK
+        else Payment.status = "refunded" (дубль, REQ-011)
+            Note over PS,DB: нічого не змінюється, повернення не надсилається
+            PS-->>PGW: HTTP 200 OK
+        else інший статус платежу (REQ-016)
+            PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P2, http_status = 409)
+            activate SecLog
+            SecLog-->>PS: logged
+            deactivate SecLog
+            PS-->>PGW: HTTP 409 Conflict
+        end
     else Orders.status != "paid"
         Note over PS,DB: обробка за SC-01, SC-02 (замовлення new) або SC-13 (cancelled)
         PS-->>PGW: HTTP 200 OK
@@ -623,6 +677,7 @@ sequenceDiagram
     participant PS as Сервіс оплат (Payment Service)
     participant DB as База даних (Database)
     participant PGW as Платіжний шлюз (Payment Gateway)
+    participant SecLog as Журнал безпеки (Security Log)
 
     PGW->>PS: paymentCallback(pay_id = P1, status = "success", signature)
     activate PS
@@ -671,10 +726,25 @@ sequenceDiagram
     PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
     activate PS
     PS->>PS: verifyHmacSha256(payload, signature)
-    PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+    PS->>DB: getPaymentById(pay_id = P1)
     activate DB
-    DB-->>PS: committed(Payment.status = "refunded", Orders.status = "cancelled")
+    DB-->>PS: Payment(pay_id = P1, status = currentStatus)
     deactivate DB
-    PS-->>PGW: HTTP 200 OK
+    alt Payment.status = "paid" (REQ-005)
+        PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
+        activate DB
+        DB-->>PS: committed(Payment.status = "refunded", Orders.status = "cancelled")
+        deactivate DB
+        PS-->>PGW: HTTP 200 OK
+    else Payment.status = "refunded" (дубль, REQ-011)
+        Note over PS,DB: нічого не змінюється, повернення не надсилається
+        PS-->>PGW: HTTP 200 OK
+    else інший статус платежу (REQ-016)
+        PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P1, http_status = 409)
+        activate SecLog
+        SecLog-->>PS: logged
+        deactivate SecLog
+        PS-->>PGW: HTTP 409 Conflict
+    end
     deactivate PS
 ```
