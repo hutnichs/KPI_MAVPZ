@@ -17,51 +17,56 @@ sequenceDiagram
     activate PS
     PS->>DB: getOrderAndPayments(order_id = 1001)
     activate DB
-    DB-->>PS: Orders(status="new"), Payment=[]
+    DB-->>PS: Orders(status = "new"), Order_Prod(quantity = 2, price_at_purchase = 100), Payment = []
     deactivate DB
-    PS->>DB: createPayment(order_id = 1001, amount = 200.00, status = "pending", date = now)
-    activate DB
-    DB-->>PS: Payment(pay_id = P1, status = "pending")
-    deactivate DB
-    PS->>PGW: createPaymentRequest(pay_id = P1, amount = 200.00)
-    activate PGW
-    PGW-->>PS: checkoutUrl
-    deactivate PGW
-    PS-->>Page: redirectToGateway(checkoutUrl)
+    alt Orders.status = "new" і Payment відсутні
+        PS->>DB: createPayment(order_id = 1001, amount = 200.00, status = "pending", date = now)
+        activate DB
+        DB-->>PS: Payment(pay_id = P1, status = "pending", amount = 200.00)
+        deactivate DB
+        PS->>PGW: createPaymentRequest(pay_id = P1, amount = 200.00, currency = "UAH")
+        activate PGW
+        PGW-->>PS: checkoutUrl
+        deactivate PGW
+        PS-->>Page: redirectToGateway(checkoutUrl)
+        Page-->>Customer: redirect(checkoutUrl)
+    else оплату розпочати не можна
+        Note over PS,PGW: відхилення оплати — див. SC-03, SC-04
+    end
     deactivate PS
-    Page-->>Customer: redirect(checkoutUrl)
     deactivate Page
+
+    Note over Customer,PGW: Клієнт вводить дані на сторінці шлюзу (поза системою)
 
     PGW->>PS: paymentCallback(pay_id = P1, status = "success", signature)
     activate PS
+    PS->>PS: verifyHmacSha256(payload, signature)
     PS->>DB: beginTx()
     activate DB
-    alt замовлення має status == "new" і товару вистачає (Product.stock >= Order_Prod.quantity)
+    DB-->>PS: txStarted
+    PS->>DB: getPaymentOrderAndStockForUpdate(pay_id = P1)
+    DB-->>PS: Payment(status = "pending"), Orders(status = "new"), Order_Prod(quantity = 2), Product(stock = 10)
+    alt Product.stock ≥ Order_Prod.quantity для всіх позицій (REQ-003)
         PS->>DB: updatePaymentStatus(pay_id = P1, status = "paid")
+        DB-->>PS: ok
         PS->>DB: updateOrderStatus(order_id = 1001, status = "paid")
+        DB-->>PS: ok
         PS->>DB: decrementStock(prod_id, quantity = 2)
-        DB-->>PS: txCommitted(Product.stock = 8)
-        deactivate DB
-        PS-->>PGW: HTTP 200 OK
-        PS->>Page: notifyOrderPaid(order_id = 1001)
-        activate Page
-        Page-->>Customer: showOrderPaidStatus()
-        deactivate Page
-    else замовлення має status == "new", але товару не вистачає (REQ-004)
-        PS->>DB: updatePaymentStatus(pay_id = P1, status = "paid")
-        PS->>DB: updateOrderStatus(order_id = 1001, status = "cancelled")
-        DB-->>PS: txCommitted(Product.stock без змін)
-        deactivate DB
+        DB-->>PS: ok(Product.stock = 8)
+    else товару не вистачає хоча б для однієї позиції (REQ-004, див. SC-15)
+        PS->>DB: markPaymentPaidAndCancelOrder(pay_id = P1, order_id = 1001)
+        DB-->>PS: ok(Orders.status = "cancelled", Product.stock без змін)
+    end
+    PS->>DB: commitTx()
+    DB-->>PS: txCommitted
+    deactivate DB
+    opt Orders.status = "cancelled" (товару не вистачило)
         PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
         activate PGW
         PGW-->>PS: refundAccepted
         deactivate PGW
-        PS-->>PGW: HTTP 200 OK
-        PS->>Page: notifyOutOfStockCancelled(order_id = 1001)
-        activate Page
-        Page-->>Customer: showMessage("Товар закінчився, кошти буде повернено")
-        deactivate Page
     end
+    PS-->>PGW: HTTP 200 OK
     deactivate PS
 ```
 
