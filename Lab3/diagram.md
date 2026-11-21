@@ -36,20 +36,31 @@ sequenceDiagram
     activate PS
     PS->>DB: beginTx()
     activate DB
-    alt товару вистачає (Product.stock >= Order_Prod.quantity)
+    alt замовлення має status == "new" і товару вистачає (Product.stock >= Order_Prod.quantity)
         PS->>DB: updatePaymentStatus(pay_id = P1, status = "paid")
         PS->>DB: updateOrderStatus(order_id = 1001, status = "paid")
         PS->>DB: decrementStock(prod_id, quantity = 2)
-        DB-->>PS: txCommitted
+        DB-->>PS: txCommitted(Product.stock = 8)
         deactivate DB
         PS-->>PGW: HTTP 200 OK
         PS->>Page: notifyOrderPaid(order_id = 1001)
         activate Page
         Page-->>Customer: showOrderPaidStatus()
         deactivate Page
-    else товару не вистачає
-        PS->>DB: rollbackTx()
-        PS-->>PGW: HTTP 409 Conflict
+    else замовлення має status == "new", але товару не вистачає (REQ-004)
+        PS->>DB: updatePaymentStatus(pay_id = P1, status = "paid")
+        PS->>DB: updateOrderStatus(order_id = 1001, status = "cancelled")
+        DB-->>PS: txCommitted(Product.stock без змін)
+        deactivate DB
+        PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
+        activate PGW
+        PGW-->>PS: refundAccepted
+        deactivate PGW
+        PS-->>PGW: HTTP 200 OK
+        PS->>Page: notifyOutOfStockCancelled(order_id = 1001)
+        activate Page
+        Page-->>Customer: showMessage("Товар закінчився, кошти буде повернено")
+        deactivate Page
     end
     deactivate PS
 ```
@@ -277,14 +288,15 @@ sequenceDiagram
     participant PS as Сервіс оплат (Payment Service)
     participant DB as База даних (Database)
 
-    PGW->>PS: paymentCallback(pay_id = P1, status = "success", signature)
+    PGW->>PS: paymentCallback(pay_id = P1, status = callbackStatus, signature)
     activate PS
     PS->>DB: getPaymentById(pay_id = P1)
     activate DB
-    DB-->>PS: Payment(status = "paid")
+    DB-->>PS: Payment(pay_id = P1, status = currentStatus)
     deactivate DB
 
-    alt статус вже відповідає події (paid/success, failed/declined, refunded/refunded)
+    alt дубльована подія (paid/success, failed/declined, refunded/refunded)
+        Note over PS,DB: Payment.status, Orders.status та Product.stock не змінюються, повернення не надсилається
         PS-->>PGW: HTTP 200 OK
     else інший випадок
         PS-->>PGW: HTTP 409 Conflict
@@ -306,20 +318,15 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentById(pay_id = P1)
     activate DB
-    DB-->>PS: Payment(pay_id = P1, status)
+    DB-->>PS: Payment(pay_id = P1, status = "paid")
     deactivate DB
-    alt Payment.status == "paid" (суперечить status = "declined")
+
+    alt повідомлення суперечить поточному статусу платежу
         PS->>SecLog: logConflictEvent(utc_timestamp, pay_id = P1, http_status = 409)
         activate SecLog
         SecLog-->>PS: logged(Payment.status = "paid", Orders.status і Product.stock без змін)
         deactivate SecLog
         PS-->>PGW: HTTP 409 Conflict
-    else Payment.status == "pending"
-        PS->>DB: markPaymentFailed(pay_id = P1, status = "failed", failure_reason = "declined")
-        activate DB
-        DB-->>PS: ok(Orders.status = "new", Product.stock без змін)
-        deactivate DB
-        PS-->>PGW: HTTP 200 OK
     end
     deactivate PS
 ```
@@ -390,16 +397,15 @@ sequenceDiagram
     activate PS
     PS->>DB: getPaymentById(pay_id = P9999)
     activate DB
-    DB-->>PS: notFound або Payment(pay_id = P9999)
+    DB-->>PS: notFound
     deactivate DB
+
     alt платіж не знайдено
         PS->>SecLog: logSecurityEvent(utc_timestamp, pay_id = P9999, http_status = 404)
         activate SecLog
-        SecLog-->>PS: logged(дані не змінено)
+        SecLog-->>PS: logged(дані замовлень, платежів і залишків не змінено)
         deactivate SecLog
         PS-->>PGW: HTTP 404 Not Found
-    else платіж знайдено
-        PS->>PS: processCallback(pay_id = P9999) — див. SC-01
     end
     deactivate PS
 ```
@@ -421,23 +427,25 @@ sequenceDiagram
     deactivate DB
 
     alt Orders.status == "paid"
+        PS->>DB: markPaymentPaidKeepOrder(pay_id = P1, order_id = 1001)
+        activate DB
+        DB-->>PS: committed(Payment.status="paid", Orders.status="paid", Product.stock без змін)
+        deactivate DB
+
         PS->>PGW: refundPayment(pay_id = P1, amount = 200.00)
         activate PGW
         PGW-->>PS: refundAccepted
         deactivate PGW
-
-        PS->>DB: markPaymentPaidKeepOrder(pay_id = P1, order_id = 1001)
-        activate DB
-        DB-->>PS: committed(Payment.status="paid", Orders.status="paid")
-        deactivate DB
         PS-->>PGW: HTTP 200 OK
 
         PGW->>PS: refundCallback(pay_id = P1, status = "refunded", signature)
+        activate PS
         PS->>DB: markPaymentRefunded(pay_id = P1, status = "refunded")
         activate DB
-        DB-->>PS: committed
+        DB-->>PS: committed(Payment.status="refunded", Orders.status="paid", Product.stock без змін)
         deactivate DB
         PS-->>PGW: HTTP 200 OK
+        deactivate PS
     else Orders.status != "paid"
         PS->>PS: handleLateSuccess(pay_id = P1) — див. SC-09, SC-13
         PS-->>PGW: HTTP 200 OK
